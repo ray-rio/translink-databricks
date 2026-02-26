@@ -59,7 +59,7 @@ serverless/.serverless/
 
 # Local env files / secrets
 .env
-.env.*
+# .env.*
 secrets.json
 
 # Python bytecode
