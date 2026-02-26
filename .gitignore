@@ -1,2 +1,72 @@
-.claude
+/.claude
 CLAUDE.md
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+.eggs/
+dist/
+build/
+pip-wheel-metadata/
+*.egg-info/
+.venv/
+venv/
+env/
+ENV/
+venv*/
+.python-version
+pyenv/
+.pytest_cache/
+.mypy_cache/
+.pytype/
+.coverage
+.cache
+
+# Virtual environments
+venv/
+ENV/
+.venv/
+env/
+
+# Distribution / packaging
+*.egg
+*.egg-info
+dist/
+build/
+*.whl
+
+# Editor directories and files
+.vscode/
+.idea/
+*.iml
+
+# macOS
+.DS_Store
+
+# AWS Lambda / deployment
+dist/lambda.zip
+dist/package/
+deploy.zip
+*.zip
+.aws-sam/
+aws-sam-build/
+/.aws-sam/build/
+serverless/.serverless/
+
+# Local env files / secrets
+.env
+.env.*
+secrets.json
+
+# Python bytecode
+*.pyc
+*.pyo
+*.pyd
+
+# Logs
+*.log
+
