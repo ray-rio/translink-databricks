@@ -2,8 +2,8 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 
 Description: >
-  transit-connector — Ingest Translink GTFS-RT VehiclePositions
-  into a Databricks Delta table via the Zerobus streaming protocol.
+  transit-connector — Ingest Translink GTFS-RT VehiclePositions and TripUpdates
+  into Databricks Delta tables via the Zerobus streaming protocol.
 
 # ── Parameters ───────────────────────────────────────────────────────────
 
@@ -39,6 +39,15 @@ Parameters:
     Default: https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions
     Description: Translink GTFS-RT VehiclePositions endpoint
 
+  DatabricksTripUpdatesTableName:
+    Type: String
+    Description: Fully qualified Delta table (catalog.schema.trip_updates)
+
+  TranslinkTripUpdatesUrl:
+    Type: String
+    Default: https://gtfsrt.api.translink.com.au/api/realtime/SEQ/TripUpdates
+    Description: Translink GTFS-RT TripUpdates endpoint
+
   LogLevel:
     Type: String
     Default: INFO
@@ -68,28 +77,82 @@ Resources:
           DATABRICKS_TABLE_NAME: !Ref DatabricksTableName
           TRANSLINK_API_URL: !Ref TranslinkApiUrl
           LOG_LEVEL: !Ref LogLevel
-      Events:
-        Schedule:
-          Type: Schedule
-          Properties:
-            Schedule: rate(1 minute)
-            Name: transit-connector-schedule
-            Description: Trigger transit-connector every minute
-            Enabled: true
     Metadata:
       BuildMethod: makefile
+
+  TripUpdatesConnectorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: trip-updates-connector
+      Runtime: python3.13
+      Handler: handler_trip_updates.lambda_handler
+      Architectures:
+        - arm64
+      Timeout: 60
+      MemorySize: 256
+      Environment:
+        Variables:
+          DATABRICKS_WORKSPACE_URL: !Ref DatabricksWorkspaceUrl
+          DATABRICKS_WORKSPACE_ID: !Ref DatabricksWorkspaceId
+          DATABRICKS_REGION: !Ref DatabricksRegion
+          DATABRICKS_CLIENT_ID: !Ref DatabricksClientId
+          DATABRICKS_CLIENT_SECRET: !Ref DatabricksClientSecret
+          DATABRICKS_TRIP_UPDATES_TABLE_NAME: !Ref DatabricksTripUpdatesTableName
+          TRANSLINK_TRIP_UPDATES_URL: !Ref TranslinkTripUpdatesUrl
+          LOG_LEVEL: !Ref LogLevel
+    Metadata:
+      BuildMethod: makefile
+
+  # ── Shared EventBridge schedule ──────────────────────────────────────
+
+  IngestionScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: transit-ingestion-schedule
+      Description: Trigger VehiclePositions and TripUpdates ingestion every minute
+      ScheduleExpression: rate(1 minute)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt TransitConnectorFunction.Arn
+          Id: VehiclePositionsTarget
+        - Arn: !GetAtt TripUpdatesConnectorFunction.Arn
+          Id: TripUpdatesTarget
+
+  ScheduleInvokeVehiclePositions:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref TransitConnectorFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt IngestionScheduleRule.Arn
+
+  ScheduleInvokeTripUpdates:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref TripUpdatesConnectorFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt IngestionScheduleRule.Arn
 
 # ── Outputs ──────────────────────────────────────────────────────────────
 
 Outputs:
-  FunctionArn:
-    Description: Lambda function ARN
+  VehiclePositionsFunctionArn:
+    Description: VehiclePositions Lambda function ARN
     Value: !GetAtt TransitConnectorFunction.Arn
 
-  FunctionName:
-    Description: Lambda function name
+  VehiclePositionsFunctionName:
+    Description: VehiclePositions Lambda function name
     Value: !Ref TransitConnectorFunction
 
+  TripUpdatesFunctionArn:
+    Description: TripUpdates Lambda function ARN
+    Value: !GetAtt TripUpdatesConnectorFunction.Arn
+
+  TripUpdatesFunctionName:
+    Description: TripUpdates Lambda function name
+    Value: !Ref TripUpdatesConnectorFunction
+
   ScheduleRuleName:
-    Description: EventBridge schedule rule name
-    Value: transit-connector-schedule
+    Description: Shared EventBridge schedule rule name
+    Value: !Ref IngestionScheduleRule

@@ -1,0 +1,63 @@
+// =============================================================================
+// Proto schema for the trip_updates Delta table (raw layer).
+// Matches the DDL in sql/create_trip_updates.sql exactly.
+//
+// Each message represents one StopTimeUpdate within a TripUpdate entity.
+// Trip-level fields are repeated per row for easy downstream querying.
+//
+// Type mapping follows the Zerobus SDK convention:
+//   STRING  → string    INT    → int32    BIGINT → int64
+//   FLOAT   → float     DOUBLE → double   TIMESTAMP → int64 (epoch µs)
+//
+// To regenerate from the live Unity Catalog table:
+//   python -m zerobus.tools.generate_proto \
+//     --uc-endpoint "https://dbc-xxx.cloud.databricks.com" \
+//     --client-id  "<app-id>" \
+//     --client-secret "<secret>" \
+//     --table "<catalog>.<schema>.trip_updates" \
+//     --output "trip_update.proto" \
+//     --proto-msg "TripUpdate"
+// =============================================================================
+
+syntax = "proto3";
+
+message TripUpdate {
+
+  // FeedEntity
+  string entity_id                  = 1;
+
+  // FeedHeader metadata
+  int64  feed_timestamp             = 2;
+  string gtfs_realtime_version      = 3;
+  string incrementality             = 4;
+
+  // TripDescriptor
+  string trip_id                    = 5;
+  string route_id                   = 6;
+  int32  direction_id               = 7;
+  string start_time                 = 8;
+  string start_date                 = 9;
+  string schedule_relationship      = 10;
+
+  // VehicleDescriptor
+  string vehicle_id                 = 11;
+  string vehicle_label              = 12;
+
+  // Trip-level delay
+  int32  trip_delay                 = 13;
+  int64  trip_timestamp             = 14;
+
+  // Per-stop prediction (one row per StopTimeUpdate)
+  int32  stop_sequence              = 15;
+  string stop_id                    = 16;
+  int32  arrival_delay              = 17;
+  int64  arrival_time               = 18;
+  int32  arrival_uncertainty        = 19;
+  int32  departure_delay            = 20;
+  int64  departure_time             = 21;
+  int32  departure_uncertainty      = 22;
+  string stop_schedule_relationship = 23;
+
+  // Ingestion metadata (TIMESTAMP → int64 epoch microseconds)
+  int64  ingested_at                = 24;
+}

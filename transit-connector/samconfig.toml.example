@@ -30,4 +30,5 @@ parameter_overrides = [
     "DatabricksClientId=<service-principal-app-id>",
     "DatabricksClientSecret=<service-principal-secret>",
     "DatabricksTableName=<catalog>.<schema>.vehicle_positions",
+    "DatabricksTripUpdatesTableName=<catalog>.<schema>.trip_updates",
 ]

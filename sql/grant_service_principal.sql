@@ -17,3 +17,6 @@ EXECUTE IMMEDIATE
 
 EXECUTE IMMEDIATE
   'GRANT MODIFY, SELECT ON TABLE ' || catalog_name || '.' || schema_name || '.vehicle_positions TO `' || service_principal || '`';
+
+EXECUTE IMMEDIATE
+  'GRANT MODIFY, SELECT ON TABLE ' || catalog_name || '.' || schema_name || '.trip_updates TO `' || service_principal || '`';
