@@ -29,6 +29,6 @@ parameter_overrides = [
     "DatabricksRegion=ap-southeast-2",
     "DatabricksClientId=<service-principal-app-id>",
     "DatabricksClientSecret=<service-principal-secret>",
-    "DatabricksTableName=<catalog>.<schema>.vehicle_positions",
+    "DatabricksVehiclePositionsTableName=<catalog>.<schema>.vehicle_positions",
     "DatabricksTripUpdatesTableName=<catalog>.<schema>.trip_updates",
 ]

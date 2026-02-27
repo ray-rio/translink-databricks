@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Build a Lambda-ready zip from the UV-managed project.
+# Build a Lambda-ready zip for a specific connector.
 #
-# Usage:  ./build.sh
-# Output: dist/lambda.zip
+# Usage:  ./build.sh [connector]
+#   connector: vehicle-positions (default) | trip-updates
+# Output: dist/<connector>.zip
 #
 # The Zerobus SDK ships a native Rust wheel (.so), so the pip install step
 # must target the Lambda runtime platform (linux, x86_64 or aarch64).
@@ -11,12 +12,29 @@
 # =============================================================================
 set -euo pipefail
 
+CONNECTOR="${1:-vehicle-positions}"
 LAMBDA_ARCH="${LAMBDA_ARCH:-x86_64}"          # or aarch64
 LAMBDA_PYTHON="${LAMBDA_PYTHON:-3.13}"        # match your Lambda runtime
 DIST_DIR="dist"
 PKG_DIR="${DIST_DIR}/package"
 
-echo "🔧 Building Lambda zip (arch=${LAMBDA_ARCH}, python=${LAMBDA_PYTHON})"
+# Validate connector name
+case "${CONNECTOR}" in
+  vehicle-positions)
+    HANDLER="${CONNECTOR}/handler.py"
+    PROTO="${CONNECTOR}/vehicle_position_pb2.py"
+    ;;
+  trip-updates)
+    HANDLER="${CONNECTOR}/handler.py"
+    PROTO="${CONNECTOR}/trip_update_pb2.py"
+    ;;
+  *)
+    echo "ERROR: Unknown connector '${CONNECTOR}'. Use: vehicle-positions | trip-updates"
+    exit 1
+    ;;
+esac
+
+echo "Building Lambda zip for ${CONNECTOR} (arch=${LAMBDA_ARCH}, python=${LAMBDA_PYTHON})"
 
 # ── Clean ────────────────────────────────────────────────────────────────
 rm -rf "${DIST_DIR}"
@@ -33,12 +51,12 @@ uv pip install \
   -r "${DIST_DIR}/requirements.txt"
 
 # ── Copy handler + compiled protos ───────────────────────────────────────
-cp handler.py "${PKG_DIR}/"
-cp gtfs_realtime_pb2.py "${PKG_DIR}/"
-cp vehicle_position_pb2.py "${PKG_DIR}/"
+cp "${HANDLER}" "${PKG_DIR}/"
+cp shared/gtfs_realtime_pb2.py "${PKG_DIR}/"
+cp "${PROTO}" "${PKG_DIR}/"
 
 # ── Zip ──────────────────────────────────────────────────────────────────
-(cd "${PKG_DIR}" && zip -qr ../lambda.zip .)
+(cd "${PKG_DIR}" && zip -qr "../${CONNECTOR}.zip" .)
 
-SIZE=$(du -sh "${DIST_DIR}/lambda.zip" | cut -f1)
-echo "✅ ${DIST_DIR}/lambda.zip (${SIZE})"
+SIZE=$(du -sh "${DIST_DIR}/${CONNECTOR}.zip" | cut -f1)
+echo "${DIST_DIR}/${CONNECTOR}.zip (${SIZE})"

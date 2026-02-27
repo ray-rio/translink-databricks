@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 
 Description: >
-  transit-connector — Ingest Translink GTFS-RT VehiclePositions and TripUpdates
+  Translink connectors — Ingest GTFS-RT VehiclePositions and TripUpdates
   into Databricks Delta tables via the Zerobus streaming protocol.
 
 # ── Parameters ───────────────────────────────────────────────────────────
@@ -30,7 +30,7 @@ Parameters:
     NoEcho: true
     Description: Service principal secret
 
-  DatabricksTableName:
+  DatabricksVehiclePositionsTableName:
     Type: String
     Description: Fully qualified Delta table (catalog.schema.vehicle_positions)
 
@@ -57,10 +57,9 @@ Parameters:
 # ── Resources ────────────────────────────────────────────────────────────
 
 Resources:
-  TransitConnectorFunction:
+  VehiclePositionsFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: transit-connector
       Runtime: python3.13
       Handler: handler.lambda_handler
       Architectures:
@@ -74,18 +73,17 @@ Resources:
           DATABRICKS_REGION: !Ref DatabricksRegion
           DATABRICKS_CLIENT_ID: !Ref DatabricksClientId
           DATABRICKS_CLIENT_SECRET: !Ref DatabricksClientSecret
-          DATABRICKS_TABLE_NAME: !Ref DatabricksTableName
+          DATABRICKS_TABLE_NAME: !Ref DatabricksVehiclePositionsTableName
           TRANSLINK_API_URL: !Ref TranslinkApiUrl
           LOG_LEVEL: !Ref LogLevel
     Metadata:
       BuildMethod: makefile
 
-  TripUpdatesConnectorFunction:
+  TripUpdatesFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: trip-updates-connector
       Runtime: python3.13
-      Handler: handler_trip_updates.lambda_handler
+      Handler: handler.lambda_handler
       Architectures:
         - arm64
       Timeout: 60
@@ -113,15 +111,15 @@ Resources:
       ScheduleExpression: rate(1 minute)
       State: ENABLED
       Targets:
-        - Arn: !GetAtt TransitConnectorFunction.Arn
+        - Arn: !GetAtt VehiclePositionsFunction.Arn
           Id: VehiclePositionsTarget
-        - Arn: !GetAtt TripUpdatesConnectorFunction.Arn
+        - Arn: !GetAtt TripUpdatesFunction.Arn
           Id: TripUpdatesTarget
 
   ScheduleInvokeVehiclePositions:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref TransitConnectorFunction
+      FunctionName: !Ref VehiclePositionsFunction
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
       SourceArn: !GetAtt IngestionScheduleRule.Arn
@@ -129,7 +127,7 @@ Resources:
   ScheduleInvokeTripUpdates:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref TripUpdatesConnectorFunction
+      FunctionName: !Ref TripUpdatesFunction
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
       SourceArn: !GetAtt IngestionScheduleRule.Arn
@@ -139,19 +137,19 @@ Resources:
 Outputs:
   VehiclePositionsFunctionArn:
     Description: VehiclePositions Lambda function ARN
-    Value: !GetAtt TransitConnectorFunction.Arn
+    Value: !GetAtt VehiclePositionsFunction.Arn
 
   VehiclePositionsFunctionName:
     Description: VehiclePositions Lambda function name
-    Value: !Ref TransitConnectorFunction
+    Value: !Ref VehiclePositionsFunction
 
   TripUpdatesFunctionArn:
     Description: TripUpdates Lambda function ARN
-    Value: !GetAtt TripUpdatesConnectorFunction.Arn
+    Value: !GetAtt TripUpdatesFunction.Arn
 
   TripUpdatesFunctionName:
     Description: TripUpdates Lambda function name
-    Value: !Ref TripUpdatesConnectorFunction
+    Value: !Ref TripUpdatesFunction
 
   ScheduleRuleName:
     Description: Shared EventBridge schedule rule name
