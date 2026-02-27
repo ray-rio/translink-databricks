@@ -1,0 +1,17 @@
+[project]
+name = "transit-connector"
+version = "0.1.0"
+description = "AWS Lambda — ingest Translink GTFS-RT VehiclePositions to Databricks via Zerobus"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "databricks-zerobus-ingest-sdk>=0.3.0",
+    "protobuf>=4.25.0,<7.0",
+    "requests>=2.28.1",
+]
+
+[dependency-groups]
+dev = [
+    "grpcio-tools>=1.60.0",
+    "python-dotenv>=1.2.1",
+]

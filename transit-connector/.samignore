@@ -1,0 +1,9 @@
+# Exclude from SAM build context
+.venv/
+.aws-sam/
+dist/
+__pycache__/
+*.pyc
+.env
+.git/
+.DS_Store

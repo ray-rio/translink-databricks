@@ -1,0 +1,95 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  transit-connector — Ingest Translink GTFS-RT VehiclePositions
+  into a Databricks Delta table via the Zerobus streaming protocol.
+
+# ── Parameters ───────────────────────────────────────────────────────────
+
+Parameters:
+  DatabricksWorkspaceUrl:
+    Type: String
+    Description: Databricks workspace URL (e.g. https://dbc-xxx.cloud.databricks.com)
+
+  DatabricksWorkspaceId:
+    Type: String
+    Description: Databricks workspace ID (numeric, from the ?o= parameter)
+
+  DatabricksRegion:
+    Type: String
+    Description: AWS region of the Databricks workspace (e.g. ap-southeast-2)
+
+  DatabricksClientId:
+    Type: String
+    NoEcho: true
+    Description: Service principal application (client) ID
+
+  DatabricksClientSecret:
+    Type: String
+    NoEcho: true
+    Description: Service principal secret
+
+  DatabricksTableName:
+    Type: String
+    Description: Fully qualified Delta table (catalog.schema.vehicle_positions)
+
+  TranslinkApiUrl:
+    Type: String
+    Default: https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions
+    Description: Translink GTFS-RT VehiclePositions endpoint
+
+  LogLevel:
+    Type: String
+    Default: INFO
+    AllowedValues: [DEBUG, INFO, WARNING, ERROR]
+    Description: Python logging level
+
+# ── Resources ────────────────────────────────────────────────────────────
+
+Resources:
+  TransitConnectorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: transit-connector
+      Runtime: python3.13
+      Handler: handler.lambda_handler
+      Architectures:
+        - arm64
+      Timeout: 60
+      MemorySize: 256
+      Environment:
+        Variables:
+          DATABRICKS_WORKSPACE_URL: !Ref DatabricksWorkspaceUrl
+          DATABRICKS_WORKSPACE_ID: !Ref DatabricksWorkspaceId
+          DATABRICKS_REGION: !Ref DatabricksRegion
+          DATABRICKS_CLIENT_ID: !Ref DatabricksClientId
+          DATABRICKS_CLIENT_SECRET: !Ref DatabricksClientSecret
+          DATABRICKS_TABLE_NAME: !Ref DatabricksTableName
+          TRANSLINK_API_URL: !Ref TranslinkApiUrl
+          LOG_LEVEL: !Ref LogLevel
+      Events:
+        Schedule:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
+            Name: transit-connector-schedule
+            Description: Trigger transit-connector every minute
+            Enabled: true
+    Metadata:
+      BuildMethod: makefile
+
+# ── Outputs ──────────────────────────────────────────────────────────────
+
+Outputs:
+  FunctionArn:
+    Description: Lambda function ARN
+    Value: !GetAtt TransitConnectorFunction.Arn
+
+  FunctionName:
+    Description: Lambda function name
+    Value: !Ref TransitConnectorFunction
+
+  ScheduleRuleName:
+    Description: EventBridge schedule rule name
+    Value: transit-connector-schedule

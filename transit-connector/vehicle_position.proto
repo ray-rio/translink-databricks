@@ -1,0 +1,63 @@
+// =============================================================================
+// Proto schema for the vehicle_positions Delta table (raw layer).
+// Matches the DDL in sql/create_vehicle_positions.sql exactly.
+//
+// Type mapping follows the Zerobus SDK convention:
+//   STRING  → string    INT    → int32    BIGINT → int64
+//   FLOAT   → float     DOUBLE → double   TIMESTAMP → int64 (epoch µs)
+//
+// To regenerate from the live Unity Catalog table:
+//   python -m zerobus.tools.generate_proto \
+//     --uc-endpoint "https://dbc-xxx.cloud.databricks.com" \
+//     --client-id  "<app-id>" \
+//     --client-secret "<secret>" \
+//     --table "<catalog>.<schema>.vehicle_positions" \
+//     --output "vehicle_position.proto" \
+//     --proto-msg "VehiclePosition"
+// =============================================================================
+
+syntax = "proto3";
+
+message VehiclePosition {
+
+  // FeedEntity
+  string entity_id                = 1;
+
+  // FeedHeader metadata
+  int64  feed_timestamp           = 2;
+  string gtfs_realtime_version    = 3;
+  string incrementality           = 4;
+
+  // TripDescriptor
+  string trip_id                  = 5;
+  string route_id                 = 6;
+  int32  direction_id             = 7;
+  string start_time               = 8;
+  string start_date               = 9;
+  string schedule_relationship    = 10;
+
+  // VehicleDescriptor
+  string vehicle_id               = 11;
+  string vehicle_label            = 12;
+  string license_plate            = 13;
+  string wheelchair_accessible    = 14;
+
+  // Position
+  float  latitude                 = 15;
+  float  longitude                = 16;
+  float  bearing                  = 17;
+  double odometer                 = 18;
+  float  speed                    = 19;
+
+  // VehiclePosition scalar fields
+  int32  current_stop_sequence    = 20;
+  string stop_id                  = 21;
+  string current_status           = 22;
+  int64  vehicle_timestamp        = 23;
+  string congestion_level         = 24;
+  string occupancy_status         = 25;
+  int32  occupancy_percentage     = 26;
+
+  // Ingestion metadata (TIMESTAMP → int64 epoch microseconds)
+  int64  ingested_at              = 27;
+}
