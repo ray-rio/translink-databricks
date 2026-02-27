@@ -61,6 +61,7 @@ serverless/.serverless/
 .env
 # .env.*
 secrets.json
+samconfig.toml
 
 # Python bytecode
 *.pyc
