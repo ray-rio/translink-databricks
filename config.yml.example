@@ -1,0 +1,35 @@
+# =============================================================================
+# Central project configuration — single source of truth.
+#
+# Copy this file and fill in your values:
+#   cp config.yml.example config.yml
+#
+# After editing, regenerate downstream config files:
+#   uv run scripts/sync_config.py
+#
+# This regenerates:
+#   - connectors/.env.example
+#   - connectors/samconfig.toml.example
+#   - analytics/databricks.yml
+#
+# Secrets (client_id, client_secret) are NOT stored here — they remain as
+# placeholders in generated files and must be supplied at deploy time.
+# =============================================================================
+
+databricks:
+  workspace_url: https://<workspace>.cloud.databricks.com
+  workspace_id: "<workspace-id>"
+  catalog: "<catalog-name>"
+  schema: "<schema-name>"
+  service_principal: "<service-principal-app-id>"
+
+aws:
+  region: ap-southeast-2
+  stack_name: transit-connector
+
+translink:
+  vehicle_positions_url: https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions
+  trip_updates_url: https://gtfsrt.api.translink.com.au/api/realtime/SEQ/TripUpdates
+  gtfs_static_url: https://gtfsrt.api.translink.com.au/GTFS/SEQ_GTFS.zip
+
+log_level: INFO

@@ -32,21 +32,27 @@ Parameters:
 
   DatabricksVehiclePositionsTableName:
     Type: String
-    Description: Fully qualified Delta table (catalog.schema.vehicle_positions)
+    Description: Fully qualified Delta table (catalog.schema.raw_vehicle_positions)
 
   TranslinkApiUrl:
     Type: String
-    Default: https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions
     Description: Translink GTFS-RT VehiclePositions endpoint
 
   DatabricksTripUpdatesTableName:
     Type: String
-    Description: Fully qualified Delta table (catalog.schema.trip_updates)
+    Description: Fully qualified Delta table (catalog.schema.raw_trip_updates)
 
   TranslinkTripUpdatesUrl:
     Type: String
-    Default: https://gtfsrt.api.translink.com.au/api/realtime/SEQ/TripUpdates
     Description: Translink GTFS-RT TripUpdates endpoint
+
+  DatabricksVolumePath:
+    Type: String
+    Description: Unity Catalog Volume path for GTFS static CSVs
+
+  TranslinkGtfsStaticUrl:
+    Type: String
+    Description: Translink GTFS static feed ZIP URL
 
   LogLevel:
     Type: String
@@ -101,6 +107,26 @@ Resources:
     Metadata:
       BuildMethod: makefile
 
+  GtfsStaticFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: python3.13
+      Handler: handler.lambda_handler
+      Architectures:
+        - arm64
+      Timeout: 120
+      MemorySize: 512
+      Environment:
+        Variables:
+          DATABRICKS_WORKSPACE_URL: !Ref DatabricksWorkspaceUrl
+          DATABRICKS_CLIENT_ID: !Ref DatabricksClientId
+          DATABRICKS_CLIENT_SECRET: !Ref DatabricksClientSecret
+          DATABRICKS_VOLUME_PATH: !Ref DatabricksVolumePath
+          TRANSLINK_GTFS_STATIC_URL: !Ref TranslinkGtfsStaticUrl
+          LOG_LEVEL: !Ref LogLevel
+    Metadata:
+      BuildMethod: makefile
+
   # ── Shared EventBridge schedule ──────────────────────────────────────
 
   IngestionScheduleRule:
@@ -132,6 +158,27 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt IngestionScheduleRule.Arn
 
+  # ── GTFS Static daily schedule (disabled — trigger manually first) ───
+
+  GtfsStaticScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: transit-gtfs-static-schedule
+      Description: Trigger GTFS static feed ingestion daily at 03:00 AEST
+      ScheduleExpression: cron(0 17 * * ? *)
+      State: DISABLED
+      Targets:
+        - Arn: !GetAtt GtfsStaticFunction.Arn
+          Id: GtfsStaticTarget
+
+  ScheduleInvokeGtfsStatic:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref GtfsStaticFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt GtfsStaticScheduleRule.Arn
+
 # ── Outputs ──────────────────────────────────────────────────────────────
 
 Outputs:
@@ -151,6 +198,18 @@ Outputs:
     Description: TripUpdates Lambda function name
     Value: !Ref TripUpdatesFunction
 
+  GtfsStaticFunctionArn:
+    Description: GTFS Static Lambda function ARN
+    Value: !GetAtt GtfsStaticFunction.Arn
+
+  GtfsStaticFunctionName:
+    Description: GTFS Static Lambda function name
+    Value: !Ref GtfsStaticFunction
+
   ScheduleRuleName:
     Description: Shared EventBridge schedule rule name
     Value: !Ref IngestionScheduleRule
+
+  GtfsStaticScheduleRuleName:
+    Description: GTFS Static EventBridge schedule rule name
+    Value: !Ref GtfsStaticScheduleRule

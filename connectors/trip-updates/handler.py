@@ -13,46 +13,21 @@ the trip-level fields for easy downstream querying.
 import logging
 import os
 import time
-
-import requests as http_requests
+from itertools import chain
 
 import gtfs_realtime_pb2 as gtfs_rt
 import trip_update_pb2 as tu_pb2
-from zerobus.sdk.shared import RecordType, StreamConfigurationOptions, TableProperties
-from zerobus.sdk.sync import ZerobusSdk
+import rt_feed
+import rt_ingest
 
 # ── Logging ─────────────────────────────────────────────────────────────
 logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 
-TRANSLINK_API_URL_DEFAULT = (
-    "https://gtfsrt.api.translink.com.au/api/realtime/SEQ/TripUpdates"
-)
-
-# ── Enum helpers ────────────────────────────────────────────────────────
-# GTFS-RT uses numeric proto enums; the Delta table stores human-readable
-# string names (e.g. "SCHEDULED" instead of 0).
-
-_INCREMENTALITY = gtfs_rt.FeedHeader.DESCRIPTOR.enum_types_by_name["Incrementality"]
-_TRIP_SCHEDULE_REL = gtfs_rt.TripDescriptor.DESCRIPTOR.enum_types_by_name["ScheduleRelationship"]
-_STOP_SCHEDULE_REL = gtfs_rt.TripUpdate.StopTimeUpdate.DESCRIPTOR.enum_types_by_name["ScheduleRelationship"]
-
-
-def _enum_name(enum_descriptor, value):
-    """Map a protobuf enum int to its string name."""
-    val = enum_descriptor.values_by_number.get(value)
-    return val.name if val else str(value)
-
-
-# ── Feed fetching ───────────────────────────────────────────────────────
-
-def fetch_feed(url):
-    """GET the Translink GTFS-RT TripUpdates feed and parse the protobuf."""
-    resp = http_requests.get(url, timeout=30)
-    resp.raise_for_status()
-    feed = gtfs_rt.FeedMessage()
-    feed.ParseFromString(resp.content)
-    return feed
+# ── Connector-specific enum descriptor ──────────────────────────────────
+_STOP_SCHEDULE_REL = gtfs_rt.TripUpdate.StopTimeUpdate.DESCRIPTOR.enum_types_by_name[
+    "ScheduleRelationship"
+]
 
 
 # ── Flatten a single entity ─────────────────────────────────────────────
@@ -68,13 +43,13 @@ def flatten_stop_time_updates(entity, header):
         entity_id=entity.id,
         feed_timestamp=header.timestamp,
         gtfs_realtime_version=header.gtfs_realtime_version,
-        incrementality=_enum_name(_INCREMENTALITY, header.incrementality),
+        incrementality=rt_feed.enum_name(rt_feed.INCREMENTALITY, header.incrementality),
         trip_id=trip.trip_id,
         route_id=trip.route_id,
         direction_id=trip.direction_id,
         start_time=trip.start_time,
         start_date=trip.start_date,
-        schedule_relationship=_enum_name(_TRIP_SCHEDULE_REL, trip.schedule_relationship),
+        schedule_relationship=rt_feed.enum_name(rt_feed.TRIP_SCHEDULE_REL, trip.schedule_relationship),
         vehicle_id=vehicle.id,
         vehicle_label=vehicle.label,
         trip_delay=tu.delay,
@@ -111,7 +86,9 @@ def flatten_stop_time_updates(entity, header):
             departure_delay=dep_delay,
             departure_time=dep_time,
             departure_uncertainty=dep_uncertainty,
-            stop_schedule_relationship=_enum_name(_STOP_SCHEDULE_REL, stu.schedule_relationship),
+            stop_schedule_relationship=rt_feed.enum_name(
+                _STOP_SCHEDULE_REL, stu.schedule_relationship
+            ),
         )
 
 
@@ -119,52 +96,25 @@ def flatten_stop_time_updates(entity, header):
 
 def lambda_handler(event, context):
     """AWS Lambda handler."""
-    translink_url = os.environ.get("TRANSLINK_TRIP_UPDATES_URL", TRANSLINK_API_URL_DEFAULT)
-    workspace_url = os.environ["DATABRICKS_WORKSPACE_URL"]
-    workspace_id = os.environ["DATABRICKS_WORKSPACE_ID"]
-    region = os.environ["DATABRICKS_REGION"]
-    client_id = os.environ["DATABRICKS_CLIENT_ID"]
-    client_secret = os.environ["DATABRICKS_CLIENT_SECRET"]
+    translink_url = os.environ["TRANSLINK_TRIP_UPDATES_URL"]
     table_name = os.environ["DATABRICKS_TRIP_UPDATES_TABLE_NAME"]
 
-    server_endpoint = f"https://{workspace_id}.zerobus.{region}.cloud.databricks.com"
-
     logger.info("Fetching Translink GTFS-RT TripUpdates …")
-    feed = fetch_feed(translink_url)
+    feed = rt_feed.fetch_feed(translink_url)
     entity_count = len(feed.entity)
     logger.info("Feed contains %d entities (header ts=%d)", entity_count, feed.header.timestamp)
 
-    # ── Zerobus stream setup ────────────────────────────────────────────
-    sdk = ZerobusSdk(server_endpoint, workspace_url)
-    table_props = TableProperties(
-        table_name,
-        tu_pb2.TripUpdate.DESCRIPTOR,
-    )
-    options = StreamConfigurationOptions(record_type=RecordType.PROTO)
-    stream = sdk.create_stream(
-        client_id,
-        client_secret,
-        table_props,
-        options,
+    # Flatten: each entity yields N StopTimeUpdate rows
+    records = chain.from_iterable(
+        flatten_stop_time_updates(entity, feed.header)
+        for entity in feed.entity
+        if entity.HasField("trip_update")
     )
 
-    # ── Ingest ──────────────────────────────────────────────────────────
-    ingested = 0
-    try:
-        acks = []
-        for entity in feed.entity:
-            if entity.HasField("trip_update"):
-                for record in flatten_stop_time_updates(entity, feed.header):
-                    ack = stream.ingest_record(record)
-                    acks.append(ack)
-
-        for ack in acks:
-            ack.wait_for_ack()
-
-        ingested = len(acks)
-        logger.info("Successfully ingested %d stop-time updates", ingested)
-    finally:
-        stream.close()
+    ingested = rt_ingest.ingest_records(
+        records, tu_pb2.TripUpdate.DESCRIPTOR, table_name
+    )
+    logger.info("Successfully ingested %d stop-time updates", ingested)
 
     return {
         "statusCode": 200,

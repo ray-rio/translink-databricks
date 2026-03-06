@@ -23,13 +23,20 @@ case "${CONNECTOR}" in
   vehicle-positions)
     HANDLER="${CONNECTOR}/handler.py"
     PROTO="${CONNECTOR}/vehicle_position_pb2.py"
+    RT_SHARED=true
     ;;
   trip-updates)
     HANDLER="${CONNECTOR}/handler.py"
     PROTO="${CONNECTOR}/trip_update_pb2.py"
+    RT_SHARED=true
+    ;;
+  gtfs-static)
+    HANDLER="${CONNECTOR}/handler.py"
+    PROTO=""
+    RT_SHARED=false
     ;;
   *)
-    echo "ERROR: Unknown connector '${CONNECTOR}'. Use: vehicle-positions | trip-updates"
+    echo "ERROR: Unknown connector '${CONNECTOR}'. Use: vehicle-positions | trip-updates | gtfs-static"
     exit 1
     ;;
 esac
@@ -52,8 +59,14 @@ uv pip install \
 
 # ── Copy handler + compiled protos ───────────────────────────────────────
 cp "${HANDLER}" "${PKG_DIR}/"
-cp shared/gtfs_realtime_pb2.py "${PKG_DIR}/"
-cp "${PROTO}" "${PKG_DIR}/"
+if [ -n "${PROTO}" ]; then
+  cp shared/gtfs_realtime_pb2.py "${PKG_DIR}/"
+  cp "${PROTO}" "${PKG_DIR}/"
+fi
+if [ "${RT_SHARED}" = true ]; then
+  cp shared/rt_feed.py "${PKG_DIR}/"
+  cp shared/rt_ingest.py "${PKG_DIR}/"
+fi
 
 # ── Zip ──────────────────────────────────────────────────────────────────
 (cd "${PKG_DIR}" && zip -qr "../${CONNECTOR}.zip" .)

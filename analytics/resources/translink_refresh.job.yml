@@ -1,0 +1,12 @@
+resources:
+  jobs:
+    translink_refresh:
+      name: translink_analytics_refresh
+      schedule:
+        quartz_cron_expression: "0 */15 * * * ?"
+        timezone_id: Australia/Brisbane
+      tasks:
+        - task_key: refresh_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.translink_analytics_pipeline.id}
+            full_refresh: false

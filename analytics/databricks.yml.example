@@ -1,0 +1,33 @@
+# Generated from config.yml — do not edit directly.
+# Run: uv run scripts/sync_config.py
+
+bundle:
+  name: translink_analytics
+
+variables:
+  catalog:
+    default: tc
+  schema:
+    default: translink
+  volume_path:
+    default: /Volumes/tc/translink/gtfs_static
+  service_principal:
+    default: 43278fedfasd-sdfgdg3-df-df32
+  warehouse_id:
+    lookup:
+      warehouse: "Serverless Starter Warehouse"
+
+include:
+  - resources/*.yml
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://<123ere.databricks.com>
+
+  prod:
+    mode: production
+    workspace:
+      host: https://<rer2e.databricks.com>

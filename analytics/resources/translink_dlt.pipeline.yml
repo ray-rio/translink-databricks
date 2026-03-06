@@ -1,0 +1,19 @@
+resources:
+  pipelines:
+    translink_analytics_pipeline:
+      name: translink_analytics
+      catalog: ${var.catalog}
+      target: ${var.schema}
+      photon: true
+      libraries:
+        - notebook:
+            path: ../src/dlt/bronze_reference.py
+        - notebook:
+            path: ../src/dlt/silver_enriched.py
+      clusters:
+        - num_workers: 1
+      configuration:
+        volume_path: ${var.volume_path}
+        catalog: ${var.catalog}
+        schema: ${var.schema}
+      continuous: false

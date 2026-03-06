@@ -1,0 +1,23 @@
+resources:
+  jobs:
+    init_catalog:
+      name: translink_init_catalog
+      tasks:
+        - task_key: create_tables
+          notebook_task:
+            notebook_path: ../src/init_tables.sql
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+            warehouse_id: ${var.warehouse_id}
+
+        - task_key: grant_permissions
+          depends_on:
+            - task_key: create_tables
+          notebook_task:
+            notebook_path: ../src/init_permissions.sql
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              service_principal: ${var.service_principal}
+            warehouse_id: ${var.warehouse_id}
