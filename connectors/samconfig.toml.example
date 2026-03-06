@@ -1,11 +1,5 @@
 # Generated from config.yml — do not edit directly.
 # Run: uv run scripts/sync_config.py
-#
-# Copy to samconfig.toml and fill in secrets:
-#   cp samconfig.toml.example samconfig.toml
-#
-# Then deploy with:
-#   sam build --use-container && sam deploy
 
 version = 0.1
 
@@ -21,14 +15,14 @@ capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 
 parameter_overrides = [
-    "DatabricksWorkspaceUrl=https://<43tg>>.cloud.databricks.com",
+    "DatabricksWorkspaceUrl=https://<workspace>.cloud.databricks.com",
     "DatabricksWorkspaceId=<workspace-id>",
     "DatabricksRegion=ap-southeast-2",
     "DatabricksClientId=<service-principal-app-id>",
     "DatabricksClientSecret=<service-principal-secret>",
-    "DatabricksVehiclePositionsTableName=tc.translink.raw_vehicle_positions",
-    "DatabricksTripUpdatesTableName=tc.translink.raw_trip_updates",
-    "DatabricksVolumePath=/Volumes/tc/translink/gtfs_static",
+    "DatabricksVehiclePositionsTableName=<catalog-name>.<schema-name>.raw_vehicle_positions",
+    "DatabricksTripUpdatesTableName=<catalog-name>.<schema-name>.raw_trip_updates",
+    "DatabricksVolumePath=/Volumes/<catalog-name>/<schema-name>/gtfs_static",
     "TranslinkApiUrl=https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions",
     "TranslinkTripUpdatesUrl=https://gtfsrt.api.translink.com.au/api/realtime/SEQ/TripUpdates",
     "TranslinkGtfsStaticUrl=https://gtfsrt.api.translink.com.au/GTFS/SEQ_GTFS.zip",

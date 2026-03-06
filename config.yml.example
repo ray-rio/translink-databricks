@@ -1,5 +1,6 @@
 # =============================================================================
-# Central project configuration — single source of truth.
+# Central project configuration — single source of truth for ALL settings
+# and secrets.
 #
 # Copy this file and fill in your values:
 #   cp config.yml.example config.yml
@@ -8,12 +9,11 @@
 #   uv run scripts/sync_config.py
 #
 # This regenerates:
-#   - connectors/.env.example
-#   - connectors/samconfig.toml.example
-#   - analytics/databricks.yml
-#
-# Secrets (client_id, client_secret) are NOT stored here — they remain as
-# placeholders in generated files and must be supplied at deploy time.
+#   - connectors/.env.example           (masked secrets, committed to git)
+#   - connectors/samconfig.toml.example (masked secrets, committed to git)
+#   - connectors/.env                   (real values, gitignored)
+#   - connectors/samconfig.toml         (real values, gitignored)
+#   - analytics/databricks.yml          (gitignored)
 # =============================================================================
 
 databricks:
@@ -21,7 +21,8 @@ databricks:
   workspace_id: "<workspace-id>"
   catalog: "<catalog-name>"
   schema: "<schema-name>"
-  service_principal: "<service-principal-app-id>"
+  client_id: "<service-principal-app-id>"
+  client_secret: "<service-principal-secret>"
 
 aws:
   region: ap-southeast-2

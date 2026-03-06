@@ -10,6 +10,8 @@ resources:
             path: ../src/dlt/bronze_reference.py
         - notebook:
             path: ../src/dlt/silver_enriched.py
+        - notebook:
+            path: ../src/dlt/gold_current.py
       clusters:
         - num_workers: 1
       configuration:
