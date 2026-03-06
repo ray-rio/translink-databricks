@@ -57,11 +57,15 @@ aws-sam-build/
 /.aws-sam/build/
 serverless/.serverless/
 
+# Databricks Asset Bundles
+.databricks/
+
 # Local env files / secrets
 .env
 # .env.*
 secrets.json
 samconfig.toml
+config.yml
 
 # Python bytecode
 *.pyc
@@ -71,3 +75,5 @@ samconfig.toml
 # Logs
 *.log
 
+
+.databricks
