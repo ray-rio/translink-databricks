@@ -3,7 +3,7 @@ resources:
     translink_refresh:
       name: translink_analytics_refresh
       schedule:
-        quartz_cron_expression: "0 */15 * * * ?"
+        quartz_cron_expression: "0 */5 * * * ?"
         timezone_id: Australia/Brisbane
       tasks:
         - task_key: refresh_pipeline

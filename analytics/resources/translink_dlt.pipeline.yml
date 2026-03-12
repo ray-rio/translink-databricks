@@ -13,7 +13,8 @@ resources:
         - notebook:
             path: ../src/dlt/gold_current.py
       clusters:
-        - num_workers: 1
+        - num_workers: 0
+          node_type_id: m5d.large
       configuration:
         volume_path: ${var.volume_path}
         catalog: ${var.catalog}
