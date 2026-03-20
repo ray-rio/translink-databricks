@@ -78,3 +78,6 @@ config.yml
 
 .databricks
 analytics/databricks.yml
+
+# Dashboard deploy script (contains real VPC/subnet IDs)
+dashboard/deploy_ec2.sh
