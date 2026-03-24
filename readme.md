@@ -250,8 +250,7 @@ uv run python -m grpc_tools.protoc -Ishared -Itrip-updates --python_out=trip-upd
 | **2-hour rolling window in Silver** | Bounds compute cost as bronze grows unboundedly. Two hours covers the maximum realistic delay between ingestion and dedup processing. |
 | **Single `config.yml`** | Eliminates config drift between SAM, DABs, and environment files. One edit propagates everywhere via `sync_config.py`. |
 | **ARM64 Lambdas** | Graviton instances are ~20% cheaper than x86 for the same workload. SAM builds inside a Docker container to cross-compile the Rust-based Zerobus SDK. |
-| **Lakeflow over manual Spark jobs** | Declarative pipeline with automatic dependency resolution, data quality expectations, and built-in lineage tracking — less operational overhead than orchestrating notebooks manually. |
-| **Service principal (M2M OAuth2)** | No personal tokens in production. The service principal has scoped permissions (catalog/schema/table level) following least-privilege. |
+| **Lakeflow over manual Spark jobs** | DLT with automatic dependency resolution, data quality expectations, and built-in lineage tracking — less operational overhead than orchestrating notebooks manually. |
 
 ---
 
