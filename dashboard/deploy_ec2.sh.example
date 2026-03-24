@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# --- Configuration ---
+REGION="<aws-region>"                       # e.g. ap-southeast-2
+AMI_ID="<ubuntu-24.04-ami-id>"              # e.g. ami-0c33c6bd24cee108b
+INSTANCE_TYPE="t2.xlarge"
+KEY_NAME="myec2-key"
+KEY_FILE="$HOME/.ssh/${KEY_NAME}.pem"
+SG_NAME="myec2-ssh-sg"
+VPC_ID="<vpc-id>"                           # e.g. vpc-0123456789abcdef0
+SUBNET_ID="<public-subnet-id>"             # Must have IGW route for SSH access
+SSH_ALIAS="myec2"
+GRAFANA_PLUGIN_URL="https://github.com/mullerpeter/databricks-grafana/releases/latest/download/mullerpeter-databricks-datasource.zip"
+
+echo "==> Generating SSH key pair..."
+if [ -f "$KEY_FILE" ]; then
+  echo "    Key file $KEY_FILE already exists, skipping generation."
+else
+  mkdir -p "$HOME/.ssh"
+  ssh-keygen -t ed25519 -f "$KEY_FILE" -N "" -C "$KEY_NAME"
+  chmod 600 "$KEY_FILE"
+  echo "    Key saved to $KEY_FILE"
+fi
+
+echo "==> Importing key pair to AWS..."
+# Delete existing key pair if present (idempotent)
+aws ec2 delete-key-pair --key-name "$KEY_NAME" --region "$REGION" 2>/dev/null || true
+aws ec2 import-key-pair \
+  --key-name "$KEY_NAME" \
+  --public-key-material fileb://"${KEY_FILE}.pub" \
+  --region "$REGION" \
+  --output text
+echo "    Key pair '$KEY_NAME' imported."
+
+echo "==> Creating security group..."
+SG_ID=$(aws ec2 describe-security-groups \
+  --filters "Name=group-name,Values=$SG_NAME" "Name=vpc-id,Values=$VPC_ID" \
+  --query 'SecurityGroups[0].GroupId' --output text --region "$REGION" 2>/dev/null)
+
+if [ "$SG_ID" = "None" ] || [ -z "$SG_ID" ]; then
+  SG_ID=$(aws ec2 create-security-group \
+    --group-name "$SG_NAME" \
+    --description "SSH + Grafana access for myec2" \
+    --vpc-id "$VPC_ID" \
+    --region "$REGION" \
+    --query 'GroupId' --output text)
+  echo "    Created security group: $SG_ID"
+
+  aws ec2 authorize-security-group-ingress \
+    --group-id "$SG_ID" \
+    --protocol tcp \
+    --port 22 \
+    --cidr 0.0.0.0/0 \
+    --region "$REGION"
+  echo "    Authorized SSH ingress (port 22)."
+
+  aws ec2 authorize-security-group-ingress \
+    --group-id "$SG_ID" \
+    --protocol tcp \
+    --port 3000 \
+    --cidr 0.0.0.0/0 \
+    --region "$REGION"
+  echo "    Authorized Grafana ingress (port 3000)."
+else
+  echo "    Security group already exists: $SG_ID"
+fi
+
+echo "==> Launching EC2 instance..."
+INSTANCE_ID=$(aws ec2 run-instances \
+  --image-id "$AMI_ID" \
+  --instance-type "$INSTANCE_TYPE" \
+  --key-name "$KEY_NAME" \
+  --security-group-ids "$SG_ID" \
+  --subnet-id "$SUBNET_ID" \
+  --associate-public-ip-address \
+  --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=myec2-dashboard}]" \
+  --region "$REGION" \
+  --query 'Instances[0].InstanceId' --output text)
+echo "    Instance launched: $INSTANCE_ID"
+
+echo "==> Waiting for instance to be running..."
+aws ec2 wait instance-running --instance-ids "$INSTANCE_ID" --region "$REGION"
+echo "    Instance is running."
+
+PUBLIC_IP=$(aws ec2 describe-instances \
+  --instance-ids "$INSTANCE_ID" \
+  --query 'Reservations[0].Instances[0].PublicIpAddress' --output text \
+  --region "$REGION")
+echo "    Public IP: $PUBLIC_IP"
+
+echo "==> Adding SSH config entry..."
+SSH_CONFIG="$HOME/.ssh/config"
+touch "$SSH_CONFIG"
+chmod 600 "$SSH_CONFIG"
+
+# Remove existing entry if present
+if grep -q "^Host ${SSH_ALIAS}$" "$SSH_CONFIG" 2>/dev/null; then
+  sed -i.bak "/^Host ${SSH_ALIAS}$/,/^Host /{ /^Host ${SSH_ALIAS}$/d; /^Host /!d; }" "$SSH_CONFIG"
+  rm -f "${SSH_CONFIG}.bak"
+fi
+
+cat >> "$SSH_CONFIG" <<EOF
+
+Host ${SSH_ALIAS}
+    HostName ${PUBLIC_IP}
+    User ubuntu
+    IdentityFile ${KEY_FILE}
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null
+EOF
+echo "    SSH config updated. Use: ssh ${SSH_ALIAS}"
+
+echo "==> Installing Docker on EC2..."
+ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  -i "$KEY_FILE" ubuntu@"$PUBLIC_IP" bash -s <<'REMOTE'
+set -euo pipefail
+sudo apt-get update -qq
+sudo apt-get install -y -qq docker.io unzip > /dev/null 2>&1
+sudo systemctl enable --now docker
+sudo usermod -aG docker ubuntu
+echo "    Prerequisites installed."
+REMOTE
+
+echo "==> Installing Databricks Grafana plugin and launching Grafana..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  -i "$KEY_FILE" ubuntu@"$PUBLIC_IP" bash -s -- "$GRAFANA_PLUGIN_URL" <<'REMOTE'
+set -euo pipefail
+PLUGIN_URL="$1"
+
+# Download and extract Databricks datasource plugin
+mkdir -p ~/grafana-plugins
+cd ~/grafana-plugins
+wget -q "$PLUGIN_URL"
+unzip -o mullerpeter-databricks-datasource.zip
+rm -f mullerpeter-databricks-datasource.zip
+
+# Launch Grafana with the plugin mounted
+sg docker -c "docker run -d --name grafana -p 3000:3000 \
+  --restart unless-stopped \
+  -v /home/ubuntu/grafana-plugins:/var/lib/grafana/plugins \
+  -v grafana-storage:/var/lib/grafana \
+  -e GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=mullerpeter-databricks-datasource \
+  grafana/grafana-oss:latest"
+
+echo "    Grafana container starting..."
+
+# Wait for Grafana to be ready
+for i in $(seq 1 30); do
+  if curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/health | grep -q 200; then
+    echo "    Grafana is ready!"
+    break
+  fi
+  sleep 2
+done
+REMOTE
+
+echo ""
+echo "=== Deployment complete ==="
+echo "Instance ID:  $INSTANCE_ID"
+echo "Public IP:    $PUBLIC_IP"
+echo "SSH command:  ssh ${SSH_ALIAS}"
+echo "Grafana UI:   http://${PUBLIC_IP}:3000"
+echo "Login:        admin / admin"
