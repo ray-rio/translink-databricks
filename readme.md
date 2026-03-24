@@ -5,7 +5,7 @@ Real-time ingestion and transformation of Queensland's public transit data (GTFS
 ---
 
 ## Architecture
-
+![Architecture](screenshots/architecture.png)
 
 
 ### How it maps to the Databricks Lakehouse
@@ -35,6 +35,7 @@ Real-time ingestion and transformation of Queensland's public transit data (GTFS
 ---
 
 ## Data Flow
+![pipeline](screenshots/pipeline.png)
 
 ### 1. Real-Time Ingestion (Every Minute)
 
@@ -77,6 +78,7 @@ A third Lambda downloads the GTFS static ZIP (routes, stops, trips, calendar, ag
 
 A Grafana instance connects to the Databricks SQL warehouse via the official datasource plugin, providing real-time dashboards over the gold layer tables.
 
+![dashboard](screenshots/dashboard.png)
 ---
 
 ## Project Structure
