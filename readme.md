@@ -261,8 +261,8 @@ All data comes from [Translink's public GTFS feeds](https://gtfsrt.api.translink
 
 | Feed | Format | Frequency | Records |
 |---|---|---|---|
-| [VehiclePositions](https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions) | Protobuf | Every minute | ~2,000 vehicles |
-| [TripUpdates](https://gtfsrt.api.translink.com.au/api/realtime/SEQ/TripUpdates) | Protobuf | Every minute | ~50,000 stop predictions |
+| [VehiclePositions](https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions) | Protobuf | Every 5 minute | ~2,000 vehicles |
+| [TripUpdates](https://gtfsrt.api.translink.com.au/api/realtime/SEQ/TripUpdates) | Protobuf | Every 5 minute | ~50,000 stop predictions |
 | [GTFS Static](https://gtfsrt.api.translink.com.au/GTFS/SEQ_GTFS.zip) | CSV ZIP | Daily | Routes, stops, trips, calendar |
 
 ---
